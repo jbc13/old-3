@@ -210,7 +210,7 @@ var1_summary_qc
 ## DT::datatable(var1_summary_qc, options = list(dom = 't'))
 ```
 
-```{r unreplace7}
+```{r save3}
 # Salvando produto 3
 
 saveRDS_product(

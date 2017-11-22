@@ -1,0 +1,64 @@
+---
+title: "RMD para filtragem dos dados de $T_{d\_,avg}$(h), que serão usados no teste qc 3c"
+author: "Jonas Corrêa (graduando) e Jônatan Tatsch (orientador)"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_notebook:
+    number_sections: yes
+    toc: yes
+  html_document:
+    fig_caption: yes
+    fig_width: 6
+    keep_md: yes
+    number_sections: yes
+    toc: no
+---
+
+# Pré-requisitos
+
+```{r}
+# Limpando a área de trabalho
+rm(list = ls())
+```
+
+```{r setup, message=FALSE}
+# Tempo Universal Coordenado
+Sys.setenv(TZ = "UTC")
+
+# Pacotes
+packs <- c("dplyr", "kableExtra", "knitr", "lubridate", "magrittr", "openair", "padr", "stringr", "tidyverse")
+easypackages::libraries(packs)
+rm(packs)
+
+# Scripts
+source("../R/qc_tests.R")
+source("../R/utils.R")
+```
+
+# Dados
+
+```{r}
+# Local onde os dados estão
+data_file <- "../output/derived_data/var-data-inmet-2008-2016-4yrs-south.rds"
+
+# Importação dos dados do local
+var_data <- readRDS(data_file) %>% arrange(site)
+var_data
+
+rm(data_file)
+```
+
+```{r}
+# Aplicação do filtro sobre a variável 'tdavg' usando os testes "qc3a" e "qc3b"
+
+qc3c_filter_td(
+  data = var_data,
+  var_inst = 'tdinst',
+  var_avg = 'tdavg',
+  var_min = 'tdmin',
+  var_max = 'tdmax',
+  save_repository = '../data/data_tdavg_filter.rds')
+```
+
+
+

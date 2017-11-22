@@ -1,0 +1,458 @@
+---
+title: "Maps of qc2"
+output: html_notebook
+---
+
+################################################################################
+
+# Resultados
+
+## Mapas da distribuição espacial das informações do produto 3 para tinst.
+
+### Total de observações suspeitas
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+
+# var1_dados_summary combinados com info
+
+var1_summary_qc_j <- left_join(var1_summary_qc, var_info, by = "site")
+estados <- readRDS("../data/estados_sul.rds")
+
+var1_gg_tot_qc2 <- gg_bubble(data = var1_summary_qc_j
+                     ,z = "perc"
+                     ,breaks = c(pretty(var1_summary_qc_j$perc, n = 6))
+                     ,limites = estados
+                     ,colors_z = viridis::viridis
+                     ,color_fill = "burlywood3"
+                     ,z_legend = "Dados suspeitos \n (%)"
+                     ,text_color = "gray30"
+                     ,point_color = "transparent"
+                     ,text_size = 2.6
+                     ,point_size = 5
+                     ,repel_min_seg_len = 2
+                     ,legend.justification = c(0,1) 
+                     ,legend.position = c(0.01, 0.99)
+                     ,guide_type = "colourbar"
+                     ) + labs(title = ID_title)
+var1_gg_tot_qc2
+```
+
+```{r, fig.height=14, fig.asp=1.2}
+sites_o <- var1_summary_qc_j$site[order(var1_summary_qc_j$tot)]
+sites_o
+var1_data_bar_qc2 <- var1_summary_qc_j %>%
+  mutate(site = ordered(site, levels = sites_o))
+var1_data_bar_qc2
+var1_ggp_tot_qc2 <- ggplot(data = var1_data_bar_qc2) +
+  geom_bar(aes(x = site, y = tot),
+  #geom_bar(aes(x = site, y = perc),
+           stat = "identity",
+           width = 0.8) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 20), expand = c(0.01,0)) +
+  coord_flip() 
+var1_ggp_tot_qc2
+# fazer gráfico com num de casos por mês (evolução temporal)
+```
+
+### % de observações suspeitas acima de um n° de horas repetidas consecutivas
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+var1_filter_meta <- function(limiar = 2, dec = 1){
+# produto 3
+  # limiar = 4; dec = 2
+var1_summary_qc_above2 <- var1_meta_qc %>% filter(n > limiar) %>%
+  group_by(site) %>%
+  summarise(qc = first(qc), 
+            tot = sum(n), 
+            n_events = max(id)) %>%  # tot: total de dados suspeitos por site
+  ungroup() %>%
+  full_join(obs_by_site, by = "site") %>%
+  mutate(perc = round(tot/n_obs * 100, dec), n_obs = NULL) 
+var1_summary_qc_above2 <- arrange(var1_summary_qc_above2, desc(perc))
+var1_summary_qc_above2
+var1_summary_qc_above2_j <- left_join(var1_summary_qc_above2, var_info, by = "site")
+return(var1_summary_qc_above2_j)
+}
+var1_data_plot <- var1_filter_meta(limiar = 2)
+var1_data_plot
+var1_gg_tot_qc2_above2 <- gg_bubble(data = var1_data_plot
+                     ,z = "perc"
+                     ,breaks = c(pretty(var1_data_plot$perc, n = 4))
+                     ,limites = estados
+                     ,colors_z = viridis::viridis
+                     ,color_fill = "burlywood3"
+                     ,z_legend = "Dados suspeitos \n (%)"
+                     ,text_color = "gray30"
+                     ,point_color = "transparent"
+                     ,text_size = 2.6
+                     ,point_size = 5
+                     ,repel_min_seg_len = 2
+                     ,legend.justification = c(0,1) 
+                     ,legend.position = c(0.01, 0.99)
+                     ,guide_type = "colorbar"
+                     ) + labs(title = ID_title)
+var1_gg_tot_qc2_above2
+#
+var1_data_plot <- var1_filter_meta(limiar = 3)
+var1_data_plot
+var1_gg_tot_qc2_above3 <- gg_bubble(data = var1_data_plot
+                     ,z = "perc"
+                     ,breaks = c(pretty(var1_data_plot$perc, n = 6))
+                     ,limites = estados
+                     ,colors_z = viridis::viridis
+                     ,color_fill = "burlywood3"
+                     ,z_legend = "Dados suspeitos \n (%)"
+                     ,text_color = "gray30"
+                     ,point_color = "transparent"
+                     ,text_size = 2.6
+                     ,point_size = 5
+                     ,repel_min_seg_len = 2,
+                     ,legend.justification = c(0,1) 
+                     ,legend.position = c(0.01, 0.99)
+                     ,guide_type = "colorbar"
+                     ) + labs(title = ID_title)
+var1_gg_tot_qc2_above3
+
+var1_data_plot <- var1_filter_meta(limiar = 4, dec = 3)
+var1_data_plot
+var1_gg_tot_qc2_above4 <- gg_bubble(data = var1_data_plot
+                     ,z = "perc"
+                     ,breaks = c(pretty(var1_data_plot$perc, n = 6))
+                     ,limites = estados
+                     ,colors_z = viridis::viridis
+                     ,color_fill = "burlywood3"
+                     ,z_legend = "Dados suspeitos \n (%)"
+                     ,text_color = "gray30"
+                     ,point_color = "transparent"
+                     ,text_size = 2.6
+                     ,point_size = 5
+                     ,repel_min_seg_len = 2,
+                     ,legend.justification = c(0,1) 
+                     ,legend.position = c(0.01, 0.99)
+                     ,guide_type = "colorbar"
+                     ) + labs(title = ID_title)
+var1_gg_tot_qc2_above4
+```
+
+### Máximo n° de horas repetidas consecutivas por EMA
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+var1_gg_max_rep_qc2 <- gg_bubble(data = var1_summary_qc_j
+                     ,z = "n_max"
+                     ,breaks = c(pretty(var1_summary_qc_j$perc, n = 11))
+                     ,limites = estados
+                     ,colors_z = viridis::viridis
+                     ,color_fill = "burlywood3"
+                     ,z_legend = "Maior sequência \n de obs. repetidas (%)"
+                     ,text_color = "gray30"
+                     ,point_color = "transparent"
+                     ,text_size = 2.6
+                     ,point_size = 5
+                     ,repel_min_seg_len = 2,
+                     ,legend.justification = c(0,1) 
+                     ,legend.position = c(0.01, 0.99)
+                     ,guide_type = "colourbar"
+                     ) + labs(title = ID_title)
+var1_gg_max_rep_qc2
+```
+
+## Histograma de observações suspeitas por n° de horas repetidas consecutivas (produto 2)
+
+```{r}
+var1_ggp_qc2_hist <- ggplot(data = var1_meta_qc) +
+  geom_histogram(aes(x = n, y = ..count../sum(..count..) * 100), stat = "count") +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 7), expand = c(0.01,0)) +
+  labs(x = "Horas repetidas consecutivas",
+       y = "Frequência de ocorrência(%)")
+var1_ggp_qc2_hist 
+#-------------------------------------------------------------------------------
+point <- scales::format_format(big.mark = ".",
+                       decimal.mark = ",",
+                       scientific = FALSE)
+
+ggplot(data = var1_meta_qc) +
+  geom_histogram(aes(x = n), stat = "count") +
+  #scale_y_continuous(labels = comma)
+  scale_y_log10(breaks = c(200000, 10000, 2500, 1000, 500, 100, 50, 10,1),
+                labels = point) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 7), expand = c(0.01,0)) +
+  labs(x = "Horas repetidas consecutivas",
+       y = "Frequência de ocorrência absoluta")
+#-------------------------------------------------------------------------------
+# dados divididos em n > 2
+var1_meta_qc_split <- bind_rows(filter(var1_meta_qc, n > 4) %>% 
+                             mutate(., id_plot = "n > 4"),
+                           mutate(var1_meta_qc, id_plot = "All data")) %>%
+  # to keep facet "All data" on the left (first)
+  mutate(., id_plot = ordered(id_plot, levels = c("All data", "n > 4")))
+# plot
+var1_ggp_qc2_hist_split <- ggplot(data = var1_meta_qc_split) +
+  geom_histogram(aes(x = n, 
+                     y = ..count../sum(..count..) * 100), 
+                 stat = "count") +
+  facet_wrap(~id_plot, scales="free") +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 7), 
+                     expand = c(0.01,0)) + 
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 8), 
+                     expand = c(0.01,0)) +
+  labs(x = "Horas repetidas consecutivas",
+       y = "Frequência de ocorrência(%)") +
+    #theme_bw() +
+  theme(plot.background = ggplot2::element_rect(fill = "transparent"),
+                   #panel.grid.major = ggplot2::element_blank(),
+                   #panel.grid.minor = ggplot2::element_blank(),
+                   axis.title.x = ggplot2::element_text(size = 15),
+                   axis.title.y = ggplot2::element_text(size = 15, angle = 90),
+                   axis.text.x = ggplot2::element_text(size = 13),
+                   axis.text.y = ggplot2::element_text(size = 13),
+                   # Legend parameters: see ?guide_legend
+                   legend.title = ggplot2::element_text(size = 11),
+                   # para evitar sobreposição da área da legenda sobre o mapa
+                   legend.background = element_rect(fill = "transparent") 
+    )
+var1_ggp_qc2_hist_split
+```
+
+## Visão geral da distribuição das observações suspeitas (produto 1) no tempo e nas EMAs
+
+```{r, fig.height=14, fig.asp=1.2}
+var1_ggp_wide_view <- ggplot(data = var1_data_qc,
+                        aes(x = date, y = site)) +
+  geom_point(aes(colour = factor(tinst_qc2)), shape = 15, size = 2.6) + 
+  labs(x = "Ano", y = "EMA") +
+  scale_x_datetime(expand = c(0, 0)) +
+    scale_colour_manual("rótulo",
+                         values = c("1" = "black", 
+                                    "0" = "snow")) +
+  theme_bw() +
+  theme(text = element_text(size = 10)
+        ) #+ guides()
+var1_ggp_wide_view
+```
+
+################################################################################
+
+# Resultados
+
+## Mapas da distribuição espacial das informações do produto 3 para a tavg.
+
+### Total de observações suspeitas
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+
+# var1_dados_summary combinados com info
+
+var2_summary_qc_j <- left_join(var2_summary_qc, var_info, by = "site")
+estados <- readRDS("../data/estados_sul.rds")
+
+var2_gg_tot_qc2 <- gg_bubble(data = var2_summary_qc_j
+                     ,z = "perc"
+                     ,breaks = c(pretty(var2_summary_qc_j$perc, n = 6))
+                     ,limites = estados
+                     ,colors_z = viridis::viridis
+                     ,color_fill = "burlywood3"
+                     ,z_legend = "Dados suspeitos \n (%)"
+                     ,text_color = "gray30"
+                     ,point_color = "transparent"
+                     ,text_size = 2.6
+                     ,point_size = 5
+                     ,repel_min_seg_len = 2
+                     ,legend.justification = c(0,1) 
+                     ,legend.position = c(0.01, 0.99)
+                     ,guide_type = "colourbar"
+                     ) + labs(title = ID_title)
+var2_gg_tot_qc2
+```
+
+```{r, fig.height=14, fig.asp=1.2}
+sites_o <- var2_summary_qc_j$site[order(var2_summary_qc_j$tot)]
+sites_o
+var2_data_bar_qc2 <- var2_summary_qc_j %>%
+  mutate(site = ordered(site, levels = sites_o))
+var2_data_bar_qc2
+var2_ggp_tot_qc2 <- ggplot(data = var2_data_bar_qc2) +
+  geom_bar(aes(x = site, y = tot),
+  #geom_bar(aes(x = site, y = perc),
+           stat = "identity",
+           width = 0.8) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 20), expand = c(0.01,0)) +
+  coord_flip() 
+var2_ggp_tot_qc2
+# fazer gráfico com num de casos por mês (evolução temporal)
+```
+
+### % de observações suspeitas acima de um n° de horas repetidas consecutivas
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+var2_filter_meta <- function(limiar = 2, dec = 1){
+# produto 3
+  # limiar = 4; dec = 2
+var2_summary_qc_above2 <- var2_meta_qc %>% filter(n > limiar) %>%
+  group_by(site) %>%
+  summarise(qc = first(qc), 
+            tot = sum(n), 
+            n_events = max(id)) %>%  # tot: total de dados suspeitos por site
+  ungroup() %>%
+  full_join(obs_by_site, by = "site") %>%
+  mutate(perc = round(tot/n_obs * 100, dec), n_obs = NULL) 
+var2_summary_qc_above2 <- arrange(var2_summary_qc_above2, desc(perc))
+var2_summary_qc_above2
+var2_summary_qc_above2_j <- left_join(var2_summary_qc_above2, var_info, by = "site")
+return(var2_summary_qc_above2_j)
+}
+var2_data_plot <- var2_filter_meta(limiar = 2)
+var2_data_plot
+var2_gg_tot_qc2_above2 <- gg_bubble(data = var2_data_plot
+                     ,z = "perc"
+                     ,breaks = c(pretty(var2_data_plot$perc, n = 4))
+                     ,limites = estados
+                     ,colors_z = viridis::viridis
+                     ,color_fill = "burlywood3"
+                     ,z_legend = "Dados suspeitos \n (%)"
+                     ,text_color = "gray30"
+                     ,point_color = "transparent"
+                     ,text_size = 2.6
+                     ,point_size = 5
+                     ,repel_min_seg_len = 2
+                     ,legend.justification = c(0,1) 
+                     ,legend.position = c(0.01, 0.99)
+                     ,guide_type = "colorbar"
+                     ) + labs(title = ID_title)
+var2_gg_tot_qc2_above2
+#
+var2_data_plot <- var2_filter_meta(limiar = 3)
+var2_data_plot
+var2_gg_tot_qc2_above3 <- gg_bubble(data = var2_data_plot
+                     ,z = "perc"
+                     ,breaks = c(pretty(var2_data_plot$perc, n = 6))
+                     ,limites = estados
+                     ,colors_z = viridis::viridis
+                     ,color_fill = "burlywood3"
+                     ,z_legend = "Dados suspeitos \n (%)"
+                     ,text_color = "gray30"
+                     ,point_color = "transparent"
+                     ,text_size = 2.6
+                     ,point_size = 5
+                     ,repel_min_seg_len = 2,
+                     ,legend.justification = c(0,1) 
+                     ,legend.position = c(0.01, 0.99)
+                     ,guide_type = "colorbar"
+                     ) + labs(title = ID_title)
+var2_gg_tot_qc2_above3
+
+var2_data_plot <- var2_filter_meta(limiar = 4, dec = 3)
+var2_data_plot
+var2_gg_tot_qc2_above4 <- gg_bubble(data = var2_data_plot
+                     ,z = "perc"
+                     ,breaks = c(pretty(var2_data_plot$perc, n = 6))
+                     ,limites = estados
+                     ,colors_z = viridis::viridis
+                     ,color_fill = "burlywood3"
+                     ,z_legend = "Dados suspeitos \n (%)"
+                     ,text_color = "gray30"
+                     ,point_color = "transparent"
+                     ,text_size = 2.6
+                     ,point_size = 5
+                     ,repel_min_seg_len = 2,
+                     ,legend.justification = c(0,1) 
+                     ,legend.position = c(0.01, 0.99)
+                     ,guide_type = "colorbar"
+                     ) + labs(title = ID_title)
+var2_gg_tot_qc2_above4
+```
+
+### Máximo n° de horas repetidas consecutivas por EMA
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+var2_gg_max_rep_qc2 <- gg_bubble(data = var2_summary_qc_j
+                     ,z = "n_max"
+                     ,breaks = c(pretty(var2_summary_qc_j$perc, n = 11))
+                     ,limites = estados
+                     ,colors_z = viridis::viridis
+                     ,color_fill = "burlywood3"
+                     ,z_legend = "Maior sequência \n de obs. repetidas (%)"
+                     ,text_color = "gray30"
+                     ,point_color = "transparent"
+                     ,text_size = 2.6
+                     ,point_size = 5
+                     ,repel_min_seg_len = 2,
+                     ,legend.justification = c(0,1) 
+                     ,legend.position = c(0.01, 0.99)
+                     ,guide_type = "colourbar"
+                     ) + labs(title = ID_title)
+var2_gg_max_rep_qc2
+```
+
+## Histograma de observações suspeitas por n° de horas repetidas consecutivas (produto 2)
+
+```{r}
+var2_ggp_qc2_hist <- ggplot(data = var2_meta_qc) +
+  geom_histogram(aes(x = n, y = ..count../sum(..count..) * 100), stat = "count") +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 7), expand = c(0.01,0)) +
+  labs(x = "Horas repetidas consecutivas",
+       y = "Frequência de ocorrência(%)")
+var2_ggp_qc2_hist 
+#-------------------------------------------------------------------------------
+point <- scales::format_format(big.mark = ".",
+                       decimal.mark = ",",
+                       scientific = FALSE)
+
+ggplot(data = var2_meta_qc) +
+  geom_histogram(aes(x = n), stat = "count") +
+  #scale_y_continuous(labels = comma)
+  scale_y_log10(breaks = c(200000, 10000, 2500, 1000, 500, 100, 50, 10,1),
+                labels = point) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 7), expand = c(0.01,0)) +
+  labs(x = "Horas repetidas consecutivas",
+       y = "Frequência de ocorrência absoluta")
+#-------------------------------------------------------------------------------
+# dados divididos em n > 2
+var2_meta_qc_split <- bind_rows(filter(var2_meta_qc, n > 4) %>% 
+                             mutate(., id_plot = "n > 4"),
+                           mutate(var2_meta_qc, id_plot = "All data")) %>%
+  # to keep facet "All data" on the left (first)
+  mutate(., id_plot = ordered(id_plot, levels = c("All data", "n > 4")))
+# plot
+var2_ggp_qc2_hist_split <- ggplot(data = var2_meta_qc_split) +
+  geom_histogram(aes(x = n, 
+                     y = ..count../sum(..count..) * 100), 
+                 stat = "count") +
+  facet_wrap(~id_plot, scales="free") +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 7), 
+                     expand = c(0.01,0)) + 
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 8), 
+                     expand = c(0.01,0)) +
+  labs(x = "Horas repetidas consecutivas",
+       y = "Frequência de ocorrência(%)") +
+    #theme_bw() +
+  theme(plot.background = ggplot2::element_rect(fill = "transparent"),
+                   #panel.grid.major = ggplot2::element_blank(),
+                   #panel.grid.minor = ggplot2::element_blank(),
+                   axis.title.x = ggplot2::element_text(size = 15),
+                   axis.title.y = ggplot2::element_text(size = 15, angle = 90),
+                   axis.text.x = ggplot2::element_text(size = 13),
+                   axis.text.y = ggplot2::element_text(size = 13),
+                   # Legend parameters: see ?guide_legend
+                   legend.title = ggplot2::element_text(size = 11),
+                   # para evitar sobreposição da área da legenda sobre o mapa
+                   legend.background = element_rect(fill = "transparent") 
+    )
+var2_ggp_qc2_hist_split
+```
+
+## Visão geral da distribuição das observações suspeitas (produto 1) no tempo e nas EMAs
+
+```{r, fig.height=14, fig.asp=1.2}
+var2_ggp_wide_view <- ggplot(data = var2_data_qc,
+                        aes(x = date, y = site)) +
+  geom_point(aes(colour = factor(tavg_qc2)), shape = 15, size = 2.6) + 
+  labs(x = "Ano", y = "EMA") +
+  scale_x_datetime(expand = c(0, 0)) +
+    scale_colour_manual("rótulo",
+                         values = c("1" = "black", 
+                                    "0" = "snow")) +
+  theme_bw() +
+  theme(text = element_text(size = 10)
+        ) #+ guides()
+var2_ggp_wide_view
+```

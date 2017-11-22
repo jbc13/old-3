@@ -1,0 +1,88 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, message=FALSE}
+# Limpa o espaço de trabalho
+
+rm(list = ls())
+
+# Carrega pacotes necessários
+packs <- c("dplyr", "knitr", "lubridate", "magrittr", "openair", "padr", "stringr", "tidyverse")
+easypackages::libraries(packs)
+rm(packs)
+
+# Carrega scripts necessários
+source("../R/complete_dates.R")
+source("../R/gaps.R")
+source("../R/gg_bubble.R")
+source("../R/utils.R")
+
+# Definindo globalmente tz = "UTC"
+Sys.setenv(TZ = "UTC")
+
+# Metadados do INMET corrigidos e atualizados.(see R/aws-inmet-metadata.R)
+
+info <-
+  readRDS("../data/info-inmet-sul.rds") %>%
+  arrange(site) %>%
+  select(site:alt) # retirada da coluna "start"
+info
+
+## Foi adicionada a estação de Goiore (A825)
+
+
+### data_raw (dados brutos) >
+### data_ren (dados renomeados) >
+### data_mod (add médias)
+
+# Carregando data_mod
+
+data_mod <- readRDS('../data_saves/s03_data_mod.rds')
+data_mod
+```
+
+
+```{r teste}
+# Criando variável data
+site <- c(rep('A801',3), rep('A802',3), rep('A803',3))
+day <- rep(1:3, 3)
+tair <- c(10:12,20:22,30:32)
+td <- tair/2
+
+data <- data.frame(site, day, tair, td)
+data['site']
+
+rm(site, day, tair, td)
+
+id <- unique(data$site)
+id
+
+site[id]
+
+class(site)
+```
+
+
+
+```{r}
+
+unique(select(data, site))
+
+subset(x = data, site == 'A801')
+
+data_split <- split(x = data, f = 'site')
+data_split
+
+length(data_split$site)
+
+summary(data)
+summary(data_split)
+
+teste1 <- function(data, variable)
+{t <-
+  data %>% filter()
+return(t)}
+```
+

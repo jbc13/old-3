@@ -1,0 +1,365 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+# Limpa o espaço de trabalho
+
+rm(list = ls()) 
+```
+
+```{r setup, message=FALSE}
+# Tempo Universal Coordenado
+Sys.setenv(TZ = "UTC")
+
+# Pacotes
+packs <- c("plyr", "dplyr", "ggplot2", "lubridate", "scales", "magrittr", "viridis") #, "rgdal", "RColorBrewer", "raster", "maps", "mapdata", "maptools", "mapproj", "RgoogleMaps", "tidyverse")
+easypackages::libraries(packs)
+rm(packs)
+
+# Scripts
+source("../R/gg_bubble.R")
+source("../R/utils.R")
+```
+
+```{r}
+summary <- readRDS('../data/info-inmet-sul.rds') %>% arrange(site)
+
+arrange(summary, start)
+
+summary %>% summarise(start_abs = min(start, na.rm = TRUE))
+summary %>% summarise(end_abs = max(start, na.rm = TRUE))
+summary %>% group_by(state) %>% summarise(sites = length(site))
+
+estados <- readRDS("../data/estados_sul.rds")
+```
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+
+gg_maps <-
+  gg_bubble(
+    data = summary,
+    z = "alt",
+    breaks = c(pretty(summary[["alt"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Altitude \n (m)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") + labs(title = "Distribuição espacial das EMAs no Sul do Brasil") + theme(plot.title = element_text(hjust = 0.5))
+
+
+  #  guide_type = "legend") +
+gg_maps
+```
+
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+gg_maps_period_old <-
+  gg_bubble(
+    data = summary_91,
+    z = "period",
+    breaks = c(pretty(summary_91[["period"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Período (anos)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar")
+gg_maps_period_old
+```
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+
+gg_maps_info_new <-
+  gg_bubble(
+    data = summary_new,
+    z = "alt",
+    breaks = c(pretty(summary_new[["alt"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Altitude \n (m)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend")
+    labs(title = "80 EMAs Selecionadas") +
+    theme(plot.title = element_text(hjust = 0.5))
+gg_maps_info_new
+```
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+gg_maps_period_new <- 
+  gg_bubble(
+    data = summary_new,
+    z = "period",
+    breaks = c(pretty(summary_new[["period"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Período \n (anos)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(title = "80 EMAs Selecionadas") +
+    theme(plot.title = element_text(hjust = 0.5))
+gg_maps_period_new
+```
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+cowplot::plot_grid(
+  gg_maps_info_old,
+  gg_maps_info_new,
+#  labels = c("91 EMAs Originais", "80 EMAs Selecionadas"),
+  vjust = 3.0,
+  hjust = -0.45,
+  align = "h",
+  label_size = 20)
+```
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+cowplot::plot_grid(
+  gg_maps_period_old,
+  gg_maps_period_new,
+#  labels = c("91 EMAs Originais", "80 EMAs Selecionadas"),
+  vjust = 3.0,
+  hjust = -0.4,
+  align = "h",
+  label_size = 20)
+```
+
+
+```{r}
+eby <- emas_by_year(summary_old, "start")
+eby
+
+plot(
+  eby, 
+  type = "o",
+  pch = 20 ,
+  main = "Número de EMAs a cada ano",
+  xlab = "Tempo (anos)",
+  ylab = "Número de EMAs"
+  )
+
+barplot(
+  height = eby$emas_number,
+  names.arg = c(2000:2016),
+  ylim = c(0,30),
+#  main =  "Número de EMAs a cada ano",
+  xlab = "Tempo (anos)",
+  ylab = "Número de EMAs"
+  )
+
+```
+
+```{r}
+pre_2008 <- sum(as.integer(year(summary_old$start) < 2006))
+pre_2008
+pos_2008 <- sum(as.integer(year(summary_old$start) >= 2006))
+pos_2008
+```
+
+
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center'}
+
+classe <- as.integer(year(summary_old$start) < 2008) # 1: pré-2008, 0: pós-2008
+table(classe) # pré-2008 = 44 EMAs, pós-2008 = 47 EMAs
+summary_old$classe <- factor(classe)
+
+# Fazendo o gráfico
+pre_pos_2008 <- 
+  ggplot(
+    data = estados, 
+    aes(
+      x = long, 
+      y = lat) ) +
+  coord_equal() +
+  geom_polygon(
+    aes(
+      group = group),
+    color = "gray57", 
+    fill = "burlywood3") +
+  theme_bw() +
+  geom_point(
+    data = summary_old, 
+    aes(
+      x = lon,
+      y = lat,
+      colour = classe),
+    size = 4.5, # altera o tamanho dos pontos das EMAs no mapa
+    shape = 20, # formato dos pontos das EMAs no mapa, shape = 20 = "ponto"
+    show.legend = TRUE) +
+  scale_colour_manual(
+    name = "Data inicial",
+    labels = c("depois de 2008", "antes de 2008"),
+    values = c("red", "blue") ) +
+  geom_text(
+    data = summary_old, 
+    aes(
+      x = lon, 
+      y = lat, 
+      label = site), 
+    fontface = "bold",
+    vjust = -1.4,
+    col = "black",
+    size = 2.8) + # altera o tamanho dos índices das EMAs no mapa
+  scale_y_continuous(
+    breaks = pretty_breaks(5),
+    minor_breaks = pretty_breaks(20),
+    expand = c(0, 0), 
+    name = expression(Latitude~~(degree)),
+    limits = c(-34.5, -22)) +
+  scale_x_continuous(
+    breaks = pretty_breaks(5),
+    minor_breaks = pretty_breaks(20),
+    expand = c(0, 0), 
+    name = expression(Longitude~~(degree)) ) +
+  theme(
+    panel.background = element_rect(
+      fill = "transparent",colour = NA),
+    plot.background = element_rect(
+      fill = "transparent",colour = NA),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16, angle = 90),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    legend.position = "right",
+    legend.title = element_text() )
+plot(pre_pos_2008)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+gg_maps_period_old <-
+  gg_bubble_mod(
+    data = summary_old,
+    z = "period",
+    breaks = c(pretty(summary_old[["period"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Período \n (anos)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(title = "91 EMAs Originais") +
+    theme(plot.title = element_text(hjust = 0.5))
+gg_maps_period_old
+```
+
+
+
+
+
+data_raw (dados brutos) >
+data_ren (dados renomeados) >
+data_mod (add médias) >
+data_pad (add completamento de datas) >
+data_var (add seleção de varíaveis) >
+data_inform (retira emas não informativas, ou seja, com 100% de dados faltates) >
+
+data_selper (add seleção de período, 2008-2016) >
+data_selyear (add seleção de mínimo de anos, 4 anos)
+
+```{r}
+summary_91 <- readRDS('../data_saves/summary_91.rds')
+summary_80 <- readRDS('../data_saves/summary_80.rds')
+
+# disp_91 <- readRDS(disp_pad_91, "../data_saves/disp_pad_91.rds")
+
+s91 <- full_join(summary_91, disp_91, by = "site")
+s91
+
+
+
+emas <- summary_80$site
+
+disp_80 <- disp_91[site == emas]
+disp_80
+
+saveRDS(s91, "../data_saves/summary_91.rds")
+```
+
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+
+gg_disp <-
+  gg_bubble(
+    data = summary_91,
+    z = "not_NA",
+    breaks = c(pretty(summary_91[["not_NA"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Disponibilidade (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  labs(title = "Disponibilidade temporal das EMAs no Sul do Brasil") +
+  theme(plot.title = element_text(hjust = 0.5))
+gg_disp
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

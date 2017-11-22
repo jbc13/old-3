@@ -1,0 +1,233 @@
+---
+title: "Controle de qualidade 3d - Teste de Consistência Interna"
+subtitle: "Baseado na comparação $T_{avg}(d) < T_{min}(d)$ ou $T_{avg}(d) > T_{max}(d)$"
+author: "Jonas Corrêa (graduando) e Jônatan Tatsch (orientador)"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_notebook:
+    number_sections: yes
+    toc: yes
+  html_document:
+    fig_caption: yes
+    fig_width: 6
+    keep_md: yes
+    number_sections: yes
+    toc: no
+---
+
+# Pré-requisitos
+
+```{r}
+# Limpando a área de trabalho
+rm(list = ls())
+```
+
+```{r}
+# Definições iniciais
+ID <- '3d' # identificador do teste de controle de qualidade aplicado
+ID_title <- paste0('QC_',ID) # identificador usado nos mapas e gráficos
+# var0 <- 'tavgD' # Variável criada para nomenclatura
+var1 <- 'tavg' # Variável 1
+var2 <- 'tmin' # Variável 2
+var3 <- 'tmax' # Variável 3
+prefix1 <- paste0(var1,'-data-inmet-2008-2016-4yrs-south')
+```
+
+```{r setup, message=FALSE}
+# Tempo Universal Coordenado
+Sys.setenv(TZ = "UTC")
+
+# Pacotes
+packs <- c("dplyr", "kableExtra", "knitr", "lubridate", "magrittr", "openair", "padr", "stringr", "tidyverse")
+easypackages::libraries(packs)
+rm(packs)
+
+# Scripts
+source("../R/crv_detect.R")
+source("../R/expected_rows.R")
+source("../R/gg_bubble.R")
+source("../R/qc_tests.R")
+source("../R/utils.R")
+```
+
+
+# Dados
+
+```{r}
+# Local onde os dados estão
+data_file <- "../output/derived_data/var-data-inmet-2008-2016-4yrs-south.rds"
+info_file <- "../output/derived_data/var-info-inmet-2008-2016-4yrs-south.rds"
+
+# Importação dos dados do local
+var_data <- readRDS(data_file) %>% arrange(site)
+var_data
+
+# Metadados do INMET corrigidos e atualizados (see R/aws-inmet-metadata.R)
+var_info <- readRDS(info_file)
+var_info
+
+rm(data_file, info_file)
+```
+
+
+# Produtos
+
+## Produto 1
+
+Conjunto de dados original com uma nova coluna nomeada como $varname\_qc_{i}$. $varname$ é o nome da variável a qual está sendo aplicado o teste de QC. $i$ é o número identificador do teste de QC e pode variar de $i=1,..,n$, onde $n$ é o nº de testes de QC.
+
+A convenção dos identificadores de QC é definida em `vignettes/qc-definition.Rmd`. 
+
+Neste caso a variável usada como rótulo identificador de dado suspeito será composto pela variável `tavg` (temperatura média do ar) e o identificador correspondente ao **teste de consistência interna** (`qc3d`). A nova variável adicionada ao conjunto de dados original será nomeada `tavg_qc3d` que assumirá os valores
+
+  - `tavg_qc3d = 1`, dado não aprovado no teste `qc3d`, portanto é classificado como uma observação de `tavg` **suspeita**
+  
+  - `tavg_qc3d = 0`, dado aprovado no teste `qc3d`
+
+```{r product1}
+# Aplicação do teste de controle de qualidade
+
+var1_data_qc <- qc_3d(
+  data = var_data,
+  variable = var1,
+  var_min = var2,
+  var_max = var3)
+var1_data_qc
+
+filter(var1_data_qc, tavg_qc3d == 1) %>% arrange(site)
+```
+
+```{r save1}
+# Salvando produtos 1
+
+saveRDS_product(
+  number_product = 1,
+  data_product = var1_data_qc,
+  prefix = prefix1,
+  id_qc = ID )
+```
+
+## Produto 2
+
+Tabela com código da EMA, identificador do teste de QC (ex. qc = 1), n° de observações suspeitas (n), data inicial (start) e data final (end) do evento.
+
+```{r product2_var1}
+# Tabela de metadata para eventos consecutivos de valores fora dos limites -----
+var1_meta_qc <-
+  var1_data_qc %>%
+  group_by(site) %>%
+  # identificador de cada evento
+  mutate(
+    id = crv_detect(
+    x = tavg_qc3d, 
+    thresh = 0,
+    min.steps = 1, 
+    numerate = TRUE)) %>%
+  filter(!is.na(id)) %>%
+  ungroup() %>%
+  arrange(site) %>%
+  group_by(site, id) %>%
+  dplyr::summarise(
+    qc = first(qc),
+    duration = n(),
+    start = min(date), 
+    end = max(date),
+    tmin = fun_NA(tavg, min, na.rm = TRUE),
+    tmed = fun_NA(tavg, mean, na.rm = TRUE),
+    tmax = fun_NA(tavg, max, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # reordenar
+  select(site, qc:tmax, id) %>%
+  arrange(site, desc(duration))
+var1_meta_qc
+
+# Total de casos suspeitos:
+## var1_nr_susp <- var1_data_qc %>% filter(tavg_qc3d == 1) %>% nrow()
+## sum(var1_meta_qc$n) == var1_nr_susp
+## rm(var1_nr_susp)
+
+
+# DT::datatable(var1_meta_qc, options = list( dom = 't'))
+```
+
+```{r fill_product2}
+# Completamento do produto 2, caso este tenha zero linhas de resultados
+
+if (nrow(var1_meta_qc) == 0)
+{ var1_meta_qc <-
+  var1_data_qc %>% 
+  select(c('site','qc')) %>% 
+  group_by(site) %>% 
+  summarise(
+    qc = ID,
+    duration = 0,
+    start = NA,
+    end = NA,
+    tmin = NA,
+    tmed = NA,
+    tmax = NA,
+    id = NA)
+  print(var1_meta_qc) }
+```
+
+```{r save2}
+# Salvando produtos 2
+
+saveRDS_product(
+  number_product = 2,
+  data_product = var1_meta_qc,
+  prefix = prefix1,
+  id_qc = ID )
+```
+
+
+## Produto 3
+
+Tabela resumo do número de casos suspeitos pelo qc aplicado e a porcentagem.
+
+```{r}
+# num de observações em cada EMA
+obs_by_site <- var_data %>%
+  group_by(site) %>%
+  summarise(n_obs = (n() / 24))
+obs_by_site
+```
+
+```{r product3}
+var1_summary_qc <-
+  var1_meta_qc %>%
+  group_by(site) %>%
+  summarise(
+    qc = first(qc),
+    tot = sum(duration), # tot: total de dados suspeitos por site
+    n_events = max(id),
+    n_max = max(duration)) %>%
+  ungroup() %>%
+  full_join(obs_by_site, by = "site") %>%
+  mutate(perc = pctg(tot, n_obs, 4), n_obs = NULL) %>%
+  select(site:tot, perc, everything()) %>%
+  arrange(site)
+var1_summary_qc %>% arrange(desc(perc))
+
+
+## DT::datatable(var1_summary_qc, options = list(dom = 't'))
+```
+
+```{r save3}
+# Salvando produto 3
+
+saveRDS_product(
+  number_product = 3,
+  data_product = var1_summary_qc,
+  prefix = prefix1,
+  id_qc = ID )
+```
+
+
+# Arquivos e finalidades
+
+1. arquivo do Produto 1: arquivo que poderá ser usado na verificação dos dados suspeitos por visualização das séries temporais
+
+2. arquivo do Produto 2: arquivo auxiliar para determinar estatísticas sobre os eventos detectados pelo QC, como por exemplo, qual o evento mais longo e a data de sua ocorrência; qual época do ano com mais dados suspeitos.
+
+3. arquivo do Produto 3: arquivo útil para visualização espacial da distribuição da frequência de ocorrência de dados suspeitos.

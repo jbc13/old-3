@@ -1,0 +1,13 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+output/*.rds
+data/*.rds
+data/*.xls
+vignettes/*.html
+.dropbox
+jonas
+refs
+data_saves/*.rds
+output/derived_data/*.rds

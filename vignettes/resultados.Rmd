@@ -1,0 +1,571 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+# Limpa o espaço de trabalho
+
+rm(list = ls()) 
+```
+
+```{r setup, message=FALSE}
+# Tempo Universal Coordenado
+Sys.setenv(TZ = "UTC")
+
+# Pacotes
+packs <- c("plyr", "dplyr", "ggplot2", "lubridate", "scales", "magrittr", "viridis") #, "rgdal", "RColorBrewer", "raster", "maps", "mapdata", "maptools", "mapproj", "RgoogleMaps", "tidyverse")
+easypackages::libraries(packs)
+rm(packs)
+
+# Scripts
+source("../R/gg_bubble.R")
+source("../R/utils.R")
+```
+
+```{r}
+info <- readRDS("../output/derived_data/tar-info-inmet-2008-2016-4yrs-south.rds")
+estados <- readRDS("../data/estados_sul.rds")
+```
+
+
+```{r disp_mod}
+# Carregando data_mod
+data_mod <- readRDS('../data_saves/data_mod.rds')
+
+disp_mod_91 <-
+  data_mod %>%
+  group_by(site) %>% 
+  summarise(
+    tot = n(),
+    yes_NA = pctg_NA(tavg),
+    not_NA = pctg_NA(tavg, not_NA = TRUE)
+  )
+disp_mod_91
+```
+
+```{r disp_pad}
+# Carregando data_pad
+data_pad <- readRDS('../data_saves/data_pad.rds')
+
+disp_pad_91 <-
+  data_pad %>%
+  group_by(site) %>% 
+  summarise(
+    tot = n(),
+    yes_NA = pctg_NA(tavg),
+    not_NA = pctg_NA(tavg, not_NA = TRUE)
+  )
+disp_pad_91
+```
+
+
+
+```{r}
+saveRDS(disp_mod_91, "../data_saves/disp_mod_91.rds")
+saveRDS(disp_pad_91, "../data_saves/disp_pad_91.rds")
+
+disp_mod_91
+disp_pad_91
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r Intervalo de Variação, fig.width=9.3, fig.height=7.25, fig.align='center' }
+qc1a_tavg <-
+  full_join(
+    readRDS("../output/qc1a-summary-tavg-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc1a_tavg
+
+qc1b_tavg <-
+  full_join(
+    readRDS("../output/qc1b-summary-tavg-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc1b_tavg
+
+map_qc1a_tavg <-
+  gg_bubble(
+    data = qc1a_tavg,
+    z = "perc",
+    breaks = c(pretty(qc1a_tavg[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Intervalo de Variação (QC_1a_Tavg)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc1a_tavg
+
+map_qc1b_tavg <-
+  gg_bubble(
+    data = qc1b_tavg,
+    z = "perc",
+    breaks = c(pretty(qc1b_tavg[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Intervalo de Variação (QC_1b_Tavg)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc1b_tavg
+
+
+cowplot::plot_grid(
+  map_qc1a_tavg,
+  map_qc1b_tavg,
+#  labels = c("91 EMAs Originais", "80 EMAs Selecionadas"),
+  vjust = 3.0,
+  hjust = -0.45,
+  align = "h",
+  label_size = 20)
+```
+
+
+```{r Persistência Temporal, fig.width=9.3, fig.height=7.25, fig.align='center' }
+qc2_tavg <-
+  full_join(
+    readRDS("../output/qc2-summary-tavg-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc2_tavg
+
+map_qc2_tavg <-
+  gg_bubble(
+    data = qc2_tavg,
+    z = "perc",
+    breaks = c(pretty(qc2_tavg[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(title = "Teste de Persistência Temporal (QC_2_Tavg)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc2_tavg
+```
+
+
+```{r Consistência Interna A, fig.width=9.3, fig.height=7.25, fig.align='center' }
+qc3a_text <-
+  full_join(
+    readRDS("../output/qc3a-summary-text-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc3a_text
+
+qc3a_tdext <-
+  full_join(
+    readRDS("../output/qc3a-summary-tdext-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc3a_tdext
+
+map_qc3a_text <-
+  gg_bubble(
+    data = qc3a_text,
+    z = "perc",
+    breaks = c(pretty(qc3a_text[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Consistência Interna (QC_3a_Text)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc3a_text
+
+map_qc3a_tdext <-
+  gg_bubble(
+    data = qc3a_tdext,
+    z = "perc",
+    breaks = c(pretty(qc3a_tdext[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Consistência Interna (QC_3a_Text)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc3a_tdext
+
+cowplot::plot_grid(
+  map_qc3a_text,
+  map_qc3a_tdext,
+#  labels = c("91 EMAs Originais", "80 EMAs Selecionadas"),
+  vjust = 3.0,
+  hjust = -0.45,
+  align = "h",
+  label_size = 20)
+```
+
+
+```{r Consistência Interna B, fig.width=9.3, fig.height=7.25, fig.align='center' }
+qc3b_tmin <-
+  full_join(
+    readRDS("../output/qc3b-summary-tmin-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc3b_tmin
+
+qc3b_tdmin <-
+  full_join(
+    readRDS("../output/qc3b-summary-tdmin-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc3b_tdmin
+
+map_qc3b_tmin <-
+  gg_bubble(
+    data = qc3b_tmin,
+    z = "perc",
+    breaks = c(pretty(qc3b_tmin[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Consistência Interna (QC_3b_Tmin)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc3b_tmin
+
+map_qc3b_tdmin <-
+  gg_bubble(
+    data = qc3b_tdmin,
+    z = "perc",
+    breaks = c(pretty(qc3b_tdmin[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Consistência Interna (QC_3b_Tdmin)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc3b_tdmin
+
+cowplot::plot_grid(
+  map_qc3b_tmin,
+  map_qc3b_tdmin,
+#  labels = c("91 EMAs Originais", "80 EMAs Selecionadas"),
+  vjust = 3.0,
+  hjust = -0.45,
+  align = "h",
+  label_size = 20)
+```
+
+```{r Consistência Interna C, fig.width=9.3, fig.height=7.25, fig.align='center' }
+qc3c_tavg <-
+  full_join(
+    readRDS("../output/qc3c-summary-tavg-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc3c_tavg
+
+map_qc3c_tavg <-
+  gg_bubble(
+    data = qc3c_tavg,
+    z = "perc",
+    breaks = c(pretty(qc3c_tavg[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Consistência Interna (QC_3c_Tavg)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc3c_tavg
+```
+
+```{r Consistência Interna D, fig.width=9.3, fig.height=7.25, fig.align='center' }
+qc3d_tinst <-
+  full_join(
+    readRDS("../output/qc3d-summary-tinst-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc3d_tinst
+
+qc3d_tdinst <-
+  full_join(
+    readRDS("../output/qc3d-summary-tdinst-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc3d_tdinst
+
+map_qc3d_tinst <-
+  gg_bubble(
+    data = qc3d_tinst,
+    z = "perc",
+    breaks = c(pretty(qc3d_tinst[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Consistência Interna (QC_3d_Tinst)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc3d_tinst
+
+map_qc3d_tdinst <-
+  gg_bubble(
+    data = qc3d_tdinst,
+    z = "perc",
+    breaks = c(pretty(qc3d_tdinst[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Consistência Interna (QC_3d_Tdinst)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc3d_tdinst
+
+cowplot::plot_grid(
+  map_qc3d_tinst,
+  map_qc3d_tdinst,
+#  labels = c("91 EMAs Originais", "80 EMAs Selecionadas"),
+  vjust = 3.0,
+  hjust = -0.45,
+  align = "h",
+  label_size = 20)
+```
+
+```{r Consistência Interna E, fig.width=9.3, fig.height=7.25, fig.align='center' }
+qc3e_tavg <-
+  full_join(
+    readRDS("../output/qc3e-summary-tavg-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc3e_tavg
+
+map_qc3e_tavg <-
+  gg_bubble(
+    data = qc3e_tavg,
+    z = "perc",
+    breaks = c(pretty(qc3e_tavg[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Consistência Interna (QC_3e_Tavg)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc3e_tavg
+```
+
+
+```{r Consistência Interna F, fig.width=9.3, fig.height=7.25, fig.align='center' }
+qc3f_tmax <-
+  full_join(
+    readRDS("../output/qc3f-summary-tmax-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc3f_tmax
+
+map_qc3f_tmax <-
+  gg_bubble(
+    data = qc3f_tmax,
+    z = "perc",
+    breaks = c(pretty(qc3f_tmax[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Consistência Interna (QC_3f_Tmax)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc3f_tmax
+```
+
+```{r Consistência Interna G, fig.width=9.3, fig.height=7.25, fig.align='center' }
+qc3g_tmin <-
+  full_join(
+    readRDS("../output/qc3g-summary-tmin-data-inmet-2008-2016-4yrs-south.rds"),
+    info,
+    by = "site")
+qc3g_tmin
+
+map_qc3g_tmin <-
+  gg_bubble(
+    data = qc3g_tmin,
+    z = "perc",
+    breaks = c(pretty(qc3g_tmin[["perc"]], n = 10)),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Dados Suspeitos (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar") +
+  #  guide_type = "legend") +
+    labs(
+      title = "Teste de Consistência Interna (QC_3g_Tmin)") +
+    theme(plot.title = element_text(hjust = 0.5))
+map_qc3g_tmin
+```
+
+
+```{r Consistência Interna FG, fig.width=9.3, fig.height=7.25, fig.align='center' }
+cowplot::plot_grid(
+  map_qc3f_tmax,
+  map_qc3g_tmin,
+#  labels = c("91 EMAs Originais", "80 EMAs Selecionadas"),
+  vjust = 3.0,
+  hjust = -0.45,
+  align = "h",
+  label_size = 20)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

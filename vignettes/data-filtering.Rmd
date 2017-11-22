@@ -1,0 +1,744 @@
+---
+title: "Seleção do período de análise dados das EMA do INMET"
+author: "Jônatan Tatsch"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_notebook:
+    toc: yes
+  html_document:
+    fig_caption: yes
+    fig_width: 6
+    keep_md: yes
+    number_sections: yes
+    toc: yes
+
+---
+
+# Introdução 
+
+A definição do período para análise das séries de dados de uma rede de estações meteorológicas automáticas (EMAs) segue critérios baseados na homogeneidade espacial das EMAs, na quantidade de dados mínima. Como critério inicial serão selecionadas estações meteorológicas automáticas (EMA) com pelo menos 4 anos de dados (podem ser descontínuos).
+
+As etapas para seleção do período são:
+
+- regularizar as séries temporais de cada EMA para garantir que todas tenham 24 h em cada dia e 365 (ou 366 dias, se ano bissexto) em cada ano
+
+- determinar o período de dados de cada EMA (n° de anos)
+
+- quantificar o número de dados válidos (não faltantes) para cada EMA
+
+
+# Pacotes, funções e pré-configurações
+
+Carregando pacotes necessários.
+
+```{r}
+# Limpa o espaço de trabalho
+
+rm(list = ls())
+```
+
+```{r setup, message=FALSE}
+# Carrega pacotes necessários
+packs <- c("dplyr", "knitr", "lubridate", "magrittr", "openair", "padr", "stringr", "tidyverse")
+easypackages::libraries(packs)
+rm(packs)
+
+# Carrega scripts necessários
+source("../R/complete_dates.R")
+source("../R/gaps.R")
+source("../R/gg_bubble.R")
+source("../R/utils.R")
+```
+
+
+Os dados são armazenados usando o Tempo Universal Coordenado [UTC](https://pt.wikipedia.org/wiki/Tempo_Universal_Coordenado). Portanto, podemos definir esse horário como padrão nessa sessão do R. Assim qualquer conversão ou operação com datas e horários usando objetos [POSIX](https://stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html) serão realizadas em UTC.
+
+```{r}
+# Definindo globalmente tz = "UTC"
+Sys.setenv(TZ = "UTC")
+```
+
+
+# Dados brutos
+
+## Informações das EMAs (metadados)
+
+Informações como as coordenadas de localização, altitude, nome e código das EMAs foram extraídas do cabeçalho contido no arquivo excel com os dados de cada EMA. Entretanto, notou-se que em alguns casos houve erro de digitação das coordenadas quando comparadas aquelas disponíveis no site do INMET.
+
+```{r}
+# Metadados do INMET corrigidos e atualizados.(see R/aws-inmet-metadata.R)
+
+info <-
+  readRDS("../data/info-inmet-sul.rds") %>%
+  arrange(site) %>%
+  select(site:alt) # retirada da coluna "start"
+info
+
+## Foi adicionada a estação de Goiore (A825)
+```
+
+
+## Dados meteorológicos
+
+```{##r not_used_anymore_1}
+# Carregar os dados meteorológicos brutos das EMA
+data_raw <- readRDS("../data/data-raw-inmet-sul-20000922-20161231.rds")
+saveRDS(data_raw, '../data_saves/s01_data_raw.rds')
+
+# Nova variável que será renomeada
+data_ren <- data_raw %>% arrange(site)
+
+# Renomeando as variáveis 'tair' e 'td' da nova variável
+n1 <- which(names(data_ren) == 'tair')
+names(data_ren) [n1] <- 'tinst'
+n2 <- which(names(data_ren) == 'td')
+names(data_ren) [n2] <- 'tdinst'
+
+data_ren
+
+saveRDS(data_ren, '../data_saves/s02_data_ren.rds')
+
+rm(data_raw, n1, n2)
+```
+
+```{## r not_used_anymore_2}
+# Adicionando as colunas para "tavg", "tdavg", "rhavg" e "pavg"
+
+data_mod <-
+  data_ren %>% 
+  mutate(
+    tavg = (tmax + tmin) / 2,
+    tdavg = (tdmax + tdmin) / 2,
+    rhavg = (rhmax + rhmin) / 2,
+    pavg = (pmax + pmin) / 2) %>% 
+  select(
+    site, date,
+    tinst, tmin, tavg, tmax,
+    tdinst, tdmin, tdavg, tdmax,
+    rh, rhmin, rhavg , rhmax,
+    p, pmin, pavg , pmax,
+    everything() )
+data_mod
+
+saveRDS(data_mod, '../data_saves/s03_data_mod.rds')
+
+rm(data_ren)
+```
+
+```{r load1}
+### data_raw (dados brutos) >
+### data_ren (dados renomeados) >
+### data_mod (add médias)
+
+# Carregando data_mod
+
+data_mod <- readRDS('../data_saves/s03_data_mod.rds')
+data_mod
+```
+
+```{# r summary_saves}
+# Verificando período de data_mod (dados originais)
+period_old <- ## período das 91 EMAs originais
+  data_mod %>%
+  group_by(site) %>%
+  summarise(
+    start = as.Date(min(date)), # data inicial
+    end = as.Date(max(date)), # data final
+    period = round(time_length(end - start, unit = "year"), 1)) %>% # período
+  ungroup()
+
+perinfo_old <-
+  full_join(period_old, info, by = "site") %>%
+  select(site, state, name, everything())
+
+rm(period_old)
+
+amount_old <- ## quantidade de dados de data_mod
+  data_mod %>%
+  group_by(site) %>%
+  summarise(
+    total_raw = n(),
+    valid_tinst = sum(!is.na(tinst)),
+    valid_tmin = sum(!is.na(tmin)),
+    valid_tavg = sum(!is.na(tavg)),
+    valid_tmax = sum(!is.na(tmax)),
+    valid_tdinst = sum(!is.na(tdinst)),
+    valid_tdmin = sum(!is.na(tdmin)),
+    valid_tdavg = sum(!is.na(tdavg)),
+    valid_tdmax = sum(!is.na(tdmax)),
+    pctg_valid_tinst = pctg(valid_tinst, total_raw, 6),
+    pctg_valid_tmin = pctg(valid_tmin, total_raw, 6),
+    pctg_valid_tavg = pctg(valid_tavg, total_raw, 6),
+    pctg_valid_tmax = pctg(valid_tmax, total_raw, 6),
+    pctg_valid_tdinst = pctg(valid_tinst, total_raw, 6),
+    pctg_valid_tdmin = pctg(valid_tdmin, total_raw, 6),
+    pctg_valid_tdavg = pctg(valid_tdavg, total_raw, 6),
+    pctg_valid_tdmax = pctg(valid_tdmax, total_raw, 6) ) %>% 
+#    missing_tavg = sum(is.na(tavg)),
+#    pctg_missing_tavg = pctg(missing_tavg, total, 6)) %>%
+  ungroup()
+
+# Juntando as variáveis 'state', 'name', 'lat', 'lon' e 'alt' de "info" com as informações de "period_old"
+summary_old <-
+  full_join(perinfo_old, amount_old, by = "site") %>%
+  select(site, state, name, everything())
+summary_old
+
+rm(amount_old, perinfo_old)
+
+saveRDS(summary_old, file = "../data_saves/summary_old.rds")
+```
+
+```{r summary_old_load}
+# Carregando summary_old, que possue as 26 variáveis:
+##  site, state, name
+##  start, end, period
+##  lat, lon, alt,
+##  total_raw,
+##  valid_tinst, valid_tmin, valid_tavg, valid_tmax,
+##  valid_tdinst, valid_tdmin, valid_tdavg, valid_tdmax,
+##  pctg_valid_tinst, pctg_valid_tmin, pctg_valid_tavg, pctg_valid_tmax,
+##  pctg_valid_tdinst, pctg_valid_tdmin, pctg_valid_tdavg, pctg_valid_tdmax
+
+summary_old <- readRDS("../data_saves/summary_old.rds")
+summary_old
+```
+
+
+# Dados temporalmente consistentes
+
+Os dados podem conter falhas temporais. Isso implica que podem haver saltos temporais nos dados. Para garantir que os dados fiquem consitentes temporal (cada estação com dias contendo 24 horas e anos com 365 ou 366 dias) faz-se o preenchimento dos horários faltantes com as datas adequadas e os valores das variáveis recebem `NA`.
+
+```{r, eval=TRUE}
+
+# Verificando intervalo de tempo 
+
+time_step <- data_mod %>%
+  filter(., site == "A801") %>%
+  select(date) %$%
+  get_interval(date)
+time_step
+
+nrow(data_mod)
+```
+
+```{## r not_used_anymore_3} 
+# Cada site com um perído de dados diferente
+
+## table(data_mod$site)
+
+data_pad <- data_mod %>%
+  filter(!is.na(date)) %>%
+  complete_dates(group = "site", time_step = "hours") %>% 
+  arrange(site) %>% 
+  select(site, date, everything())
+
+## nrow(data_pad)
+
+rm(data_mod)
+
+saveRDS(data_pad, '../data_saves/s04_data_pad.rds')
+rm(data_pad)
+```
+
+
+```{r load2}
+### data_raw (dados brutos) >
+### data_ren (dados renomeados) >
+### data_mod (add médias) >
+### data_pad (add completamento de datas)
+
+# Carregando data_pad
+data_pad <- readRDS('../data_saves/s04_data_pad.rds')
+data_pad
+```
+
+```{r}
+# Seleção das variáveis que queremos utilizar
+
+data_var <-
+  data_pad %>%
+  select(site:tdmax, p, prec, rg)
+data_var
+
+saveRDS(data_var, '../data_saves/s05_data_var.rds')
+rm(data_pad)
+```
+
+
+# Seleção de EMAs
+
+## Critério de disponibilidade mínima de observações
+
+Antes de determinar o período de dados de cada EMA é preciso remover as EMAs que conhenham muitos (todos) dados faltantes. Isso geralmente ocorre para EMAs inseridas recentemente no conjunto de dados. 
+
+- Classificação das EMAs pela % de falhas
+
+```{r}
+# Ranking de falhas das EMAs
+
+rank_falt <-
+  data_var %>%
+  group_by(site) %>%
+  summarise(
+    N = n(),
+    falt = sum(is.na(tavg)), 
+    falt_perc = pctg(falt, N, 6)) %>%
+  left_join(select(info, site, name), by = "site") %>% 
+  
+# combinando com info para saber nome das EMAs
+##  full_join(info_old, by = "site") %>% 
+  select(site, name, everything()) %>%
+  arrange(desc(falt_perc))
+rank_falt
+```
+
+Removendo EMAs sem dados.
+
+```{r}
+# Dados preenchidos e informativo
+
+not_informative <-
+  rank_falt %>%
+  filter(N == falt)
+not_informative
+
+data_inform <-
+  data_var %>%
+  filter(!site %in% not_informative$site)
+data_inform
+
+saveRDS(data_inform, '../data_saves/s06_data_inform.rds')
+rm(data_var)
+
+### Nota: Como não houve caso de EMAs não informativas, data_inform será igual ao data_var
+```
+
+
+## Critérios baseados no período de dados
+
+### Período de dados
+
+```{#r}
+period_old <-
+  data_inform %>%
+  group_by(site) %>%
+  filter(!is.na(tavg)) %>%
+  summarise(
+    start = as.Date(min(date)), # data inicial
+    end = as.Date(max(date)), # data final
+    period = round(time_length(end - start, unit = "year"), 1)) %>% # período
+  ungroup() %>% # desagrupando por site
+  
+# combinando com info para saber nome das EMAs
+##  full_join(info_old, by = 'site') %>%
+  left_join(select(info, site, name, state, lon, lat), by = "site") %>%
+  select(site, state, name, everything()) %>% 
+  arrange(desc(period))
+period_old %>% arrange(site) %>% select(site:period, lat, lon)
+summary_old %>% arrange(site)
+```
+
+```{## r teste}
+full_join(period_91, period_old, by = "site") %>%
+  select(site, start.x, start.y, end.x, end.y, period.x, period.y) %>%
+  filter(start.x != start.y) # 39 casos
+#  filter(end.x != end.y) # 3 casos
+#  filter(period.x != period.y) # 9 casos
+```
+
+### Seleção de dados por período mínimo e ano inicial
+
+As EMAs selecionadas devem ter um período de pelo menos 4 anos e baseado em trabalhos prévios devem começar em 2008.
+
+```{r}
+begin_year <- 2008
+end_year <- 2016
+period_thres <- 4
+```
+
+```{#r}
+# EMAs com pelo menos 4 anos (sites selecionados)
+period_new <-
+  period_old %>%
+  filter(period >= period_thres)
+
+sel_sites <-
+  period_new  %>%
+  select(site) %>%
+  pull() # transforma uma coluna de um data frame em um vetor
+sel_sites
+
+length(sel_sites)
+
+rm(period_new)
+
+
+# Filtragem de período començando em 2008 até o final de 2016
+sy <- data_pad_inf %>% openair::selectByDate(year = begin_year:end_year) # demora
+saveRDS(sy, "../data_saves/sel_year.rds")
+```
+
+```{r}
+# Filtrando "summary_old" baseado no quesito de EMAs com no mínimo 4 anos de dados
+
+summary_new <-
+  summary_old %>%
+  filter(period >= 4)
+
+saveRDS(summary_new, file = "../data_saves/summary_new.rds")
+
+rm(summary_old, summary_new)
+```
+
+```{r summary_new_load}
+# Carregando summary_new, que possue as 26 variáveis:
+##  site, state, name
+##  start, end, period
+##  lat, lon, alt,
+##  total_raw,
+##  valid_tinst, valid_tmin, valid_tavg, valid_tmax,
+##  valid_tdinst, valid_tdmin, valid_tdavg, valid_tdmax,
+##  pctg_valid_tinst, pctg_valid_tmin, pctg_valid_tavg, pctg_valid_tmax,
+##  pctg_valid_tdinst, pctg_valid_tdmin, pctg_valid_tdavg, pctg_valid_tdmax
+
+summary_new <- readRDS("../data_saves/summary_new.rds")
+summary_new
+```
+
+```{r filter1_by_year}
+data_year <-
+  data_inform %>%
+  openair::selectByDate(year = begin_year:end_year) %>%
+  arrange(site) %>%
+  select(site, date, everything())
+
+rm(data_inform)
+
+saveRDS(data_year, '../data_saves/s07_data_year.rds')
+rm(data_year)
+
+data_year <- readRDS('../data_saves/s07_data_year.rds')
+data_year
+```
+
+
+```{r filter2_by_sel}
+# Sites das EMAs com pelo menos 4 anos de dados
+sel_sites <-
+  summary_new %>%
+  select(site) %>%
+  pull() # transforma uma coluna de um data frame em um vetor
+sel_sites
+
+# Total de sites selecionados
+length(sel_sites)
+
+# Filtragem de EMAs com no mínimo 4 anos de dados
+data_sel <-
+  filter(data_year, site %in% sel_sites) %>%
+  arrange(site) %>% 
+  select(site, everything())
+data_sel
+
+rm(data_year)
+
+saveRDS(data_sel, '../data_saves/s08_data_sel.rds')
+rm(data_sel)
+
+data_sel <- readRDS('../data_saves/s08_data_sel.rds')
+data_sel
+```
+
+Salvar dados selecionados pelos critérios de período mínimo de 4 anos e ano inicial 2008.
+
+```{r}
+# dados
+file_data_sel <-
+  paste0(
+    "var-data-inmet-",
+    begin_year, "-",
+    end_year, "-",
+    period_thres, "yrs-",
+    "south.rds")
+
+saveRDS(data_sel, file = file.path("../output/derived_data", file_data_sel))
+
+# metadados
+file_info_sel <-
+  paste0(
+    "var-info-inmet-",
+    begin_year, "-",
+    end_year, "-",
+    period_thres, "yrs-",
+    "south.rds")
+
+info_sel <- filter(info, site %in% sel_sites) %>% arrange(site)
+info_sel
+
+saveRDS(info_sel, file = file.path("../output/derived_data", file_info_sel))
+
+rm(file_data_sel, file_info_sel)
+```
+
+## Até aqui está pronto
+
+
+
+
+
+
+#############################################################################
+Gráfico do período de dados.
+
+```{r}
+estados <-
+  readRDS("../data/estados_sul.rds") %>%
+  select(order, id, lat, long, everything())
+head(estados)
+tail(estados)
+```
+
+```{r plot-periodo, fig.width=9.3, fig.height=7.25, fig.align='center' }
+filter(data_period, site == "A825")
+
+gg_periodo <-
+  gg_bubble(
+    data =  filter(data_period, site %in% sel_sites),
+    #data = data_period
+    z = "period",
+    breaks = pretty(data_period$period, n = 10),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Período (anos)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "legend" )
+gg_periodo
+```
+
+```{r}
+ggplot(data_period, aes(x = round(period))) + 
+  #geom_histogram(aes(y = ..count../sum(..count..)), stat = "count") + 
+  geom_histogram(stat = "count", aes(fill = state)) +
+  #viridis::scale_fill_viridis(discrete=TRUE, option = "inferno") +
+  scale_fill_grey() +
+#  scale_y_continuous(labels = scales::percent, sec.axis = sec_axis(~. * sum(.))) + 
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 15), expand = c(0, 0)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 12), expand = c(0.05, 0.05)) +
+  labs(x = "Período (anos)", y = "Nº de EMAs") +
+  theme_bw()
+```
+
+######################### continuar daqui #################################
+# Disponibilidade de dados
+
+```{r}
+gap <-
+  data_sel %>%
+  group_by(site) %>%
+  dplyr::summarise(
+# % de dados faltantes
+    valid = pctg_NA(value = tavg, houses = 1, not_NA = TRUE),
+    missing = pctg_NA(value = tavg, houses = 1),
+    #long_valid = length(na.contiguous(tair)),
+    long_valid = longest_gap(tavg, reverse = TRUE),
+# tamnho da falha mais longa
+    long_gap = longest_gap(tavg),
+# data de início da maior falha
+    sdate_lv = date_longest_gap(tavg, date, reverse = TRUE),
+    sdate_lg = date_longest_gap(tavg, date) ) %>%
+# desagrupando por site
+  ungroup() %>%
+# combinando com a tabela de informações das EMA
+  left_join(info, by = "site") %>%
+  select(site, state, name, period, everything()) %>% 
+#  arrange_vars(c("name" = 2, "period" = 3)) %>%
+  arrange(desc(missing))
+gap
+```
+
+
+```{r}
+# Convertendo max duração contínua de horas faltantes ou válidas para dias
+gap <- 
+  gap %>%
+  mutate(
+    long_valid = round(time_length(hours(long_valid), unit = "day")),
+    long_gap = round(time_length(hours(long_valid), unit = "day")))
+gap
+```
+
+```{#r}
+file_gaps <-
+  paste0("tar-gaps-inmet-",
+    begin_year, "-",
+    end_year, "-",
+    period_thres, "yrs-",
+    "south.rds")
+saveRDS(gaps, file = file.path("../output", file_gaps))
+```
+
+
+*Porcentagem de observações por mês *
+
+```{r, message=FALSE, warning=FALSE}
+table(data_sel$site)
+
+# Porcentagem mensal de dados válidos com o periodo nao normalizado
+records_month <-
+  data_sel %>%
+  select(date, site, tavg, prec) %>%
+  group_by(site) %>%
+  openair::timeAverage(
+    avg.time = "month",
+    statistic = "data.cap",
+    type = "site") %>%
+  #mutate(date = as.Date(date)) %>%
+  ungroup() %>%
+  mutate(x = as.numeric(date)) 
+records_month 
+```
+
+```{r}
+# Ordem dos sites por disponibilidade
+sites_ord <-
+  records_month %>%
+  group_by(site) %>%
+  summarise(disp = mean(tavg, na.rm = TRUE)) %>%
+  arrange(desc(disp)) %>%
+  #select(site) %>%
+  pull(site) %>%  as.character()
+#sites_ord
+
+# Dados para plot
+records_month_plot <-
+  records_month %>%
+  mutate(
+    tavg = ifelse(tavg > 0, tavg, NA),
+    prec = ifelse(prec > 0, prec, NA),
+    site = ordered(site, levels = sites_ord))
+levels(records_month_plot$site)
+```
+
+
+**Gráficos da disponibilidade de dados.**
+
+```{r, fig.height=14, fig.asp=1.2}
+ggp <-
+  ggplot(
+    aes(
+      x = date,
+      y = site),
+    data = records_month_plot
+    ) +
+  #data = records_month_plot %>% filter(year(date)==2016)) +
+  #geom_tile(aes(fill = avail)) +
+  #geom_raster(aes(fill = avail)) + 
+  geom_point(aes(colour = tavg), shape = 15, size = 2.6) + 
+  labs(x = "Ano", y = "EMA") +
+  #ylim(rev(levels(records_month_plot$site)))+
+  #scale_y_discrete(expand = c(0, 0)
+                   #labels = yl_labels
+  #                 ) +
+   #scale_y_discrete(position = c("right"),
+    #                labels = yr_labels, ) +
+  scale_x_datetime(
+    expand = c(0, 0)
+                   #breaks = scales::date_breaks(width = "1 year"),
+                   #minor_breaks = scales::date_breaks(width = "6 months"),
+                   #labels = scales::date_format("%Y")
+    ) +
+  scale_colour_gradientn(
+    "obs/month\n(%)",
+    colours = viridis::viridis(n = 256),
+    na.value = NA) +
+#  scale_fill_gradientn("records/month\n(%)",
+#                       colours = viridis::viridis(n= 256),
+#                       na.value = NA)+ 
+  theme_bw() +
+  theme(text = element_text(size = 10)
+        #aspect.ratio = 1
+        #aspect.ratio = 2 / (1 + sqrt(5))
+        #aspect.ratio = (1 + sqrt(5))/ 2
+        )
+ggp
+```
+
+#> dados de julho de 2016 não inclusos no conj de dados
+
+
+```{r plot-disp, fig.width=9.3, fig.height=7.25, fig.align='center' }
+estados <- readRDS("../data/estados_sul.rds")
+filter(gap, site == "A825")
+
+gg_disp <-
+  gg_bubble(
+  #data =  filter(gaps, site %in% sites_sel)
+    data = gap,
+    z = "valid",
+    breaks = c(pretty(gap$valid, n = 10),105),
+    limites = estados,
+    colors_z = viridis::viridis,
+    color_fill = "burlywood3",
+    z_legend = "Disponibilidade (%)",
+    text_color = "gray30",
+    point_color = "transparent",
+    text_size = 2.6,
+    point_size = 3,
+    repel_min_seg_len = 2,
+    legend.justification = c(0,1),
+    legend.position = c(0.01, 0.99),
+    guide_type = "colourbar"
+    )
+  
+gg_disp
+
+range(gap$valid)
+```
+
+
+```{r}
+ggplot(gap, aes(x = round(missing))) + 
+  #geom_histogram(aes(y = ..count../sum(..count..)), stat = "count") + 
+  geom_histogram(stat = "count", aes(fill = state)) +
+  #viridis::scale_fill_viridis(discrete=TRUE, option = "inferno") +
+  scale_fill_grey() +
+  #scale_y_continuous(labels = scales::percent,
+  #                   sec.axis = sec_axis(~. * sum(.))) + 
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 12), 
+                     expand = c(0, 0)) +
+  labs(x = "Dados faltantes (%)", y = "Nº de EMAs") +
+  theme_bw()
+```
+
+
+```{r plots1, fig.width=9.3, fig.height=7.25, fig.align='center' }
+cowplot::plot_grid(
+  gg_periodo,
+  gg_disp,
+  labels = c("(a)", "(b)"),
+  vjust = 3.0,
+  hjust = -7.25,
+  align = "h",
+  label_size = 20)
+```
+
+# Arquivos gerados para análises futuras
+
+
+- arquivo de metadados
+    
+    - `output/tar-info-inmet-2008-2016-4yrs-south.rds`
+    
+- arquivo de dados meteorológicos
+
+    - `output/tar-data-inmet-2008-2016-4yrs-south.rds`
+

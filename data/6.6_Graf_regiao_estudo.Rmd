@@ -1,0 +1,117 @@
+---
+title: "Gráfico para localizar a região de estudo"
+author: "Andr Fogliarini Parcianello"
+date: "June 1, 2016"
+output: html_document
+---
+
+
+
+# Introdução
+
+Tópicos abordados:
+- Disp. de dados para cada EMA, plotadas em RASTER
+- Total acumulado de cada EMA, plotados em RASTER, incluindo valores máximos/médios/mínimos
+
+
+# Pré-requisitos
+
+Pacotes necessários
+
+```{r setup, include=FALSE}
+library(plyr)
+library(dplyr)
+library(openair)
+library(ggplot2)
+library(lattice)
+library(stats)
+library(zoo)
+library(sp)
+library(raster)
+#library(oro.nifti) # Alternativa ao "topo.colors" para a plotagem
+library(scales)
+library(maptools)
+library(RColorBrewer)
+# definindo globalmente tz = "UTC"
+Sys.setenv(TZ = "UTC")
+```
+
+
+# Carregando dados necessários 
+
+```{r}
+info_sumary <- readRDS(file = "../data_saves/summary_91")
+info_sumary = summary_91
+mdet_df <- readRDS("../data/mdet_sulBR_900m.rds")
+estados_sul_f <- readRDS("../data/estados_sul_fortify.rds")
+```
+
+
+# Gráfico 
+```{r, fig.width=9.3, fig.height=7.25, fig.align='center' }
+regiao_estudo <- 
+  ggplot(mdet_df) + 
+  geom_raster(aes(lon, lat, fill = alt)) +
+  scale_fill_gradientn(colors = topo.colors(n = 6, alpha = 0), 
+                       name = "Altitude (m)",
+                       guide = "colourbar", 
+                       space = "Lab") +
+  scale_y_continuous(breaks = pretty_breaks(5),
+                     minor_breaks = pretty_breaks(20),
+                     expand = c(0, 0), 
+                     name = "Latitude (°)",
+                     limits = c(-34.5, -22)) +
+  scale_x_continuous(breaks = pretty_breaks(5),
+                     minor_breaks = pretty_breaks(20),
+                     expand = c(0, 0), 
+                     name = "Longitude (°)") +
+  geom_path(data = estados_sul_f,
+            aes(x = long, 
+                y = lat, 
+                group = group)) +
+  geom_point(data = info_sumary, 
+             aes(x = lon,
+                 y = lat), 
+             colour = "red2",
+             size = 6,
+             shape = 20, 
+             show.legend = TRUE) +
+  # scale_colour_gradientn(colors = brewer.pal(9,name = "PuBu"),
+  #                        name = "Disp. de dados (%) \n (1990-2014)",
+  #                        guide = "colourbar", 
+  #                        space = "Lab") +
+  geom_text(data = info_sumary, 
+            aes(x = lon, 
+                y = lat, 
+                label = site), 
+            fontface = "bold",
+            vjust = -1.2,
+            col = "black",
+            size = 2.5) +
+  theme_bw() +
+  coord_equal() +
+  theme(plot.background = element_rect(fill = "transparent"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16, angle = 90),
+        axis.text.x = element_text(size = 14),
+        axis.text.y = element_text(size = 14),
+        legend.position = "right",
+        legend.title = element_text()
+  ) + labs(title = "Distribuição espacial das EMAs no Sul do Brasil") + theme(plot.title = element_text(hjust = 0.5))
+
+plot(regiao_estudo)
+```
+
+
+
+```{r}
+# Salvando plot
+ggsave(filename = "Regiao de estudo.png",
+       plot = regiao_estudo,
+       device = "png", 
+       path = "../Figs/",
+       width = 8.3,
+       height = 6.25)           # Salvo em 800x600 pixels
+```
